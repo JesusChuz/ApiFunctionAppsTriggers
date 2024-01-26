@@ -61,38 +61,42 @@ namespace AzureFunctionConsumer
                             MainServiceBusAsync(args).GetAwaiter().GetResult();
                             break;
                         case 5:
+                            WriteLine("You selected Service Bus Sessions.");
+                            MainServiceBusAsyncSessions(args).GetAwaiter().GetResult();
+                            break;
+                        case 6:
                             WriteLine("You selected Cosomos DB.");
                             MainCosmosDBAsync(args).GetAwaiter().GetResult();
                             break;
-                        case 6:
+                        case 7:
                             WriteLine("You selected HTTP Trigger.");
                             MainHTTPTriggerAsync(args).GetAwaiter().GetResult();
                             break;
-                        case 7:
+                        case 8:
                             WriteLine("You selected Event Grid.");
                             WriteLine("NOT YET IMPLEMENTED.");
                             break;
-                        case 8:
+                        case 9:
                             WriteLine("You selected Table Storage.");
                             MainStorageTableAsync(args).GetAwaiter().GetResult();
                             break;
-                        case 9:
+                        case 10:
                             WriteLine("You selected Microsoft Graph.");
                             WriteLine("You need to run this one from a browser and send your AAD credentials.");
                             break;
-                        case 10:
+                        case 11:
                             WriteLine("You selected SendGrid.");
                             WriteLine("NOT YET IMPLEMENTED.");
                             break;
-                        case 11:
+                        case 12:
                             WriteLine("You selected SignalR.");
                             WriteLine("NOT YET IMPLEMENTED.");
                             break;
-                        case 12:
+                        case 13:
                             WriteLine("You selected Timer.");
                             WriteLine("This one is run completely from the portal.");
                             break;
-                        case 13:
+                        case 14:
                             WriteLine("Bye.");
                             keepGoing = false;
                             break;
@@ -113,16 +117,17 @@ namespace AzureFunctionConsumer
             WriteLine("2.  Storage Queue");
             WriteLine("3.  Blob Storage");
             WriteLine("4.  Service Bus");
-            WriteLine("5.  Cosomos DB");
-            WriteLine("6.  HTTP Trigger");
-            WriteLine("7.  Event Grid");
-            WriteLine("8.  Table Storage");
-            WriteLine("9.  Microsoft Graph");
-            WriteLine("10. SendGrid");
-            WriteLine("11. SignalR");
+            WriteLine("5.  Service Bus Sessions");
+            WriteLine("6.  Cosomos DB");
+            WriteLine("7.  HTTP Trigger");
+            WriteLine("8.  Event Grid");
+            WriteLine("9.  Table Storage");
+            WriteLine("10.  Microsoft Graph");
+            WriteLine("11. SendGrid");
             WriteLine("12. SignalR");
-            WriteLine("13. Exit");
-            WriteLine("Which would you like to trigger?  Enter '13' to exit.");
+            WriteLine("13. SignalR");
+            WriteLine("14. Exit");
+            WriteLine("Which would you like to trigger?  Enter '14' to exit.");
             var result = ReadLine();
             return ToInt32(result);
         }
@@ -452,6 +457,72 @@ namespace AzureFunctionConsumer
             await SendMessagesToServicebus(ServiceBusMessagesToSend);
             await queueClient.CloseAsync();
         }
+        private static async Task MainServiceBusAsyncSessions(string[] args)
+        {
+            WriteLine("Enter your Service Bus connection string:");
+            var ServiceBusConnectionString = ReadLine();
+            while (ServiceBusConnectionString.Length == 0)
+            {
+                WriteLine("Try again, this value must have a length > 0");
+                WriteLine("Enter your Service Bus connection string:");
+                ServiceBusConnectionString = ReadLine();
+            }
+            WriteLine("Enter your Queue name:");
+            var QueueName = ReadLine();
+            while (QueueName.Length == 0)
+            {
+                WriteLine("Try again, this value must have a length > 0");
+                WriteLine("Enter yourQueue name:");
+                QueueName = ReadLine();
+            }
+            WriteLine("Enter number of messages to add: ");
+            int ServiceBusMessagesToSend = 0;
+            while (!int.TryParse(ReadLine(), out ServiceBusMessagesToSend))
+            {
+                WriteLine("Try again, this value must be numeric.");
+            }
+            queueClient = new QueueClient(ServiceBusConnectionString, QueueName);
+            await SendMessagesWithSessionsToServicebus(ServiceBusMessagesToSend);
+            await queueClient.CloseAsync();
+        }
+        private static async Task SendMessagesWithSessionsToServicebus(int numMessagesToSend)
+        {
+            var sessionId = Guid.NewGuid().ToString(); // Generate a session ID for this batch of messages
+
+            for (var i = 0; i < numMessagesToSend; i++)
+            {
+                try
+                {
+                    var messageBody = $"Message-{i}-{Guid.NewGuid().ToString("N")}-{DateTime.Now.Minute}";
+                    WriteLine($"Sending message: {messageBody}");
+
+                    // Create message with session ID
+                    var message = new Message(Encoding.UTF8.GetBytes(messageBody))
+                    {
+                        SessionId = sessionId
+                    };
+
+                    await queueClient.SendAsync(message);
+                }
+                catch (ServiceBusTimeoutException sbte)
+                {
+                    WriteLine($"ServiceBusTimeoutException: {sbte.Message}");
+                }
+                catch (ServiceBusException sbe)
+                {
+                    WriteLine($"ServiceBusException: {sbe.Message}");
+                }
+                catch (Exception ex)
+                {
+                    WriteLine($"{DateTime.Now} > Exception: {ex.Message}");
+                }
+
+                await Task.Delay(10);
+            }
+
+            WriteLine($"{numMessagesToSend} messages sent with session ID: {sessionId}.");
+        }
+
         private static async Task SendMessagesToServicebus(int numMessagesToSend)
         {
             for (var i = 0; i < numMessagesToSend; i++)
